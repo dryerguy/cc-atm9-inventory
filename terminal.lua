@@ -33,7 +33,7 @@ rednet.open(modemSide)
 -- Find monitor (optional)
 local monitor = nil
 for _, name in ipairs(peripheral.getNames()) do
-    if peripheral.getType(name) == "monitor" then
+    if peripheral.hasType(name, "monitor") then
         monitor = peripheral.wrap(name)
         monitor.setTextScale(0.5)
         break

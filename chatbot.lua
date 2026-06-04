@@ -10,17 +10,23 @@ local BOT_NAME = "StockBot"
 -- PERIPHERAL SETUP
 -- ============================================================
 
--- Find chatBox (Advanced Peripherals)
+-- Find chatBox by looking for sendMessage method (type name varies by AP version)
 local chatBox = nil
 for _, name in ipairs(peripheral.getNames()) do
-    if peripheral.getType(name) == "chatBox" then
-        chatBox = peripheral.wrap(name)
-        break
+    local methods = peripheral.getMethods(name)
+    if methods then
+        for _, m in ipairs(methods) do
+            if m == "sendMessage" then
+                chatBox = peripheral.wrap(name)
+                break
+            end
+        end
     end
+    if chatBox then break end
 end
 
 if not chatBox then
-    error("No chatBox peripheral found. Attach a Chat Box.", 0)
+    error("No chatBox peripheral found. Attach a Chat Box (Advanced Peripherals).", 0)
 end
 
 print("ChatBot ready. Listening for !stock commands...")
@@ -29,7 +35,7 @@ print("ChatBot ready. Listening for !stock commands...")
 -- HELPERS
 -- ============================================================
 local function send(msg)
-    chatBox.sendMessage("[" .. BOT_NAME .. "] " .. msg, BOT_NAME)
+    chatBox.sendMessage("[" .. BOT_NAME .. "] " .. msg, BOT_NAME, "<>", 0xAAAAAA)
 end
 
 -- Reads from the shared inventory table that terminal.lua keeps updated.

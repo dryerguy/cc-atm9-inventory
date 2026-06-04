@@ -1,5 +1,6 @@
 -- updater.lua
--- Checks GitHub for a newer version and downloads all files if stale.
+-- Checks GitHub for a newer version and downloads the appropriate files.
+-- Detects whether this is a node or terminal computer and downloads accordingly.
 -- Runs at boot before everything else. Falls back gracefully if HTTP fails.
 
 -- ============================================================
@@ -7,7 +8,25 @@
 -- ============================================================
 local GITHUB_BASE  = "https://raw.githubusercontent.com/dryerguy/cc-atm9-inventory/master/"
 local VERSION_FILE = "version.txt"
-local FILES        = {"node.lua", "terminal.lua", "chatbot.lua", "startup.lua", "updater.lua"}
+
+local NODE_FILES     = {"node.lua", "updater.lua", "node_startup.lua"}
+local TERMINAL_FILES = {"terminal.lua", "chatbot.lua", "startup.lua", "updater.lua"}
+
+-- ============================================================
+-- COMPUTER TYPE DETECTION
+-- Terminal has a chatBox (sendMessage method) or a monitor attached.
+-- Node has inventory peripherals on its wired network.
+-- ============================================================
+local function isTerminal()
+    for _, name in ipairs(peripheral.getNames()) do
+        local methods = peripheral.getMethods(name) or {}
+        for _, m in ipairs(methods) do
+            if m == "sendMessage" then return true end
+        end
+        if peripheral.hasType(name, "monitor") then return true end
+    end
+    return false
+end
 
 -- ============================================================
 -- HELPERS
@@ -54,7 +73,10 @@ local function update()
         return
     end
 
-    print("Updater: v" .. localVersion .. " -> v" .. remoteVersion)
+    local FILES = isTerminal() and TERMINAL_FILES or NODE_FILES
+    local kind  = isTerminal() and "terminal" or "node"
+
+    print("Updater [" .. kind .. "]: v" .. localVersion .. " -> v" .. remoteVersion)
 
     local failed = 0
     for _, file in ipairs(FILES) do
