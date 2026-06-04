@@ -1,0 +1,83 @@
+-- updater.lua
+-- Checks GitHub for a newer version and downloads all files if stale.
+-- Runs at boot before everything else. Falls back gracefully if HTTP fails.
+
+-- ============================================================
+-- CONFIG
+-- ============================================================
+local GITHUB_BASE  = "https://raw.githubusercontent.com/dryerguy/cc-atm9-inventory/master/"
+local VERSION_FILE = "version.txt"
+local FILES        = {"node.lua", "terminal.lua", "chatbot.lua", "startup.lua", "updater.lua"}
+
+-- ============================================================
+-- HELPERS
+-- ============================================================
+local function readLocalVersion()
+    if not fs.exists(VERSION_FILE) then return "0" end
+    local f = fs.open(VERSION_FILE, "r")
+    local v = f.readLine()
+    f.close()
+    return v and v:match("^%s*(.-)%s*$") or "0"
+end
+
+local function writeLocalVersion(v)
+    local f = fs.open(VERSION_FILE, "w")
+    f.write(v)
+    f.close()
+end
+
+local function httpGet(url)
+    local ok, resp = pcall(http.get, url)
+    if not ok or not resp then return nil end
+    local body = resp.readAll()
+    resp.close()
+    return body
+end
+
+-- ============================================================
+-- UPDATE CHECK
+-- ============================================================
+local function update()
+    print("Updater: checking...")
+
+    local remoteBody = httpGet(GITHUB_BASE .. VERSION_FILE)
+    if not remoteBody then
+        print("Updater: no HTTP connection, skipping.")
+        return
+    end
+
+    local remoteVersion = remoteBody:match("^%s*(.-)%s*$")
+    local localVersion  = readLocalVersion()
+
+    if remoteVersion == localVersion then
+        print("Updater: up to date (v" .. localVersion .. ")")
+        return
+    end
+
+    print("Updater: v" .. localVersion .. " -> v" .. remoteVersion)
+
+    local failed = 0
+    for _, file in ipairs(FILES) do
+        local content = httpGet(GITHUB_BASE .. file)
+        if content then
+            local f = fs.open(file, "w")
+            f.write(content)
+            f.close()
+            print("  + " .. file)
+        else
+            print("  FAIL: " .. file)
+            failed = failed + 1
+        end
+    end
+
+    if failed == 0 then
+        writeLocalVersion(remoteVersion)
+        print("Updater: done. Rebooting...")
+        sleep(2)
+        os.reboot()
+    else
+        print("Updater: " .. failed .. " file(s) failed. Skipping reboot.")
+    end
+end
+
+update()

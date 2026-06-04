@@ -1,11 +1,13 @@
 -- startup.lua
--- Launches terminal and chatbot simultaneously on the terminal computer
+-- Boot sequence: check for updates, then launch terminal + chatbot in parallel
+
+shell.run("updater.lua")
 
 parallel.waitForAny(
     function() shell.run("terminal.lua") end,
     function() shell.run("chatbot.lua") end
 )
 
-print("A program exited. Restarting in 3 seconds...")
+print("A program exited. Rebooting in 3 seconds...")
 sleep(3)
-shell.run("startup.lua")
+os.reboot()
