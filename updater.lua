@@ -1,7 +1,7 @@
 -- updater.lua
 -- Checks GitHub for a newer version and downloads the appropriate files.
 -- Detects whether this is a node or terminal computer and downloads accordingly.
--- Runs at boot before everything else. Falls back gracefully if HTTP fails.
+-- Falls back gracefully if HTTP fails.
 
 -- ============================================================
 -- CONFIG
@@ -9,22 +9,31 @@
 local GITHUB_BASE  = "https://raw.githubusercontent.com/dryerguy/cc-atm9-inventory/master/"
 local VERSION_FILE = "version.txt"
 
-local NODE_FILES     = {"node.lua", "updater.lua", "node_startup.lua"}
-local TERMINAL_FILES = {"terminal.lua", "chatbot.lua", "startup.lua", "updater.lua"}
+local NODE_FILES     = {"node.lua", "updater.lua", "startup.lua", "version.txt"}
+local TERMINAL_FILES = {"terminal.lua", "chatbot.lua", "startup.lua", "updater.lua", "version.txt"}
 
 -- ============================================================
 -- COMPUTER TYPE DETECTION
--- Terminal has a chatBox (sendMessage method) or a monitor attached.
--- Node has inventory peripherals on its wired network.
+-- Terminal has a chatBox (sendMessage method) or a monitor.
+-- Cached so isTerminal() only scans once.
 -- ============================================================
+local _isTerminalCache = nil
 local function isTerminal()
+    if _isTerminalCache ~= nil then return _isTerminalCache end
     for _, name in ipairs(peripheral.getNames()) do
         local methods = peripheral.getMethods(name) or {}
         for _, m in ipairs(methods) do
-            if m == "sendMessage" then return true end
+            if m == "sendMessage" then
+                _isTerminalCache = true
+                return true
+            end
         end
-        if peripheral.hasType(name, "monitor") then return true end
+        if peripheral.hasType(name, "monitor") then
+            _isTerminalCache = true
+            return true
+        end
     end
+    _isTerminalCache = false
     return false
 end
 
@@ -73,8 +82,9 @@ local function update()
         return
     end
 
-    local FILES = isTerminal() and TERMINAL_FILES or NODE_FILES
-    local kind  = isTerminal() and "terminal" or "node"
+    local terminal = isTerminal()
+    local FILES    = terminal and TERMINAL_FILES or NODE_FILES
+    local kind     = terminal and "terminal" or "node"
 
     print("Updater [" .. kind .. "]: v" .. localVersion .. " -> v" .. remoteVersion)
 

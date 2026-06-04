@@ -4,13 +4,13 @@
 -- ============================================================
 -- CONFIG
 -- ============================================================
-local BOT_NAME = "StockBot"
+local BOT_NAME    = "StockBot"
+local MSG_DELAY   = 0.2   -- seconds between chat messages to avoid spam
 
 -- ============================================================
 -- PERIPHERAL SETUP
+-- Detect chatBox by method scan — AP type strings are unreliable
 -- ============================================================
-
--- Find chatBox by looking for sendMessage method (type name varies by AP version)
 local chatBox = nil
 for _, name in ipairs(peripheral.getNames()) do
     local methods = peripheral.getMethods(name)
@@ -36,59 +36,51 @@ print("ChatBot ready. Listening for !stock commands...")
 -- ============================================================
 local function send(msg)
     chatBox.sendMessage("[" .. BOT_NAME .. "] " .. msg, BOT_NAME, "<>", 0xAAAAAA)
+    sleep(MSG_DELAY)
 end
 
--- Reads from the shared inventory table that terminal.lua keeps updated.
--- Returns an empty table with a notice if terminal hasn't loaded yet.
 local function getItems()
     local items = _G.sharedInventory
-    if not items or #items == 0 then
-        return nil
-    end
+    if not items or #items == 0 then return nil end
     return items
 end
 
 -- ============================================================
 -- COMMAND HANDLERS
 -- ============================================================
-local function handleStock(player, arg)
+local function cmdHelp()
+    send("Commands: !stock | !stock <name> | !stock low | !help")
+end
+
+local function cmdStock(arg)
     local items = getItems()
     if not items then
-        send("No inventory data yet — terminal is still loading.")
+        send("No data yet — terminal is still loading.")
         return
     end
 
     if arg == "" then
-        -- Top 10 items by count
         send("Top 10 items:")
         for i = 1, math.min(10, #items) do
             send("  " .. items[i].displayName .. ": " .. items[i].count)
         end
 
     elseif arg == "low" then
-        -- Items below 64
-        local found = 0
-        local lines = {}
+        local low = {}
         for _, item in ipairs(items) do
-            if item.count < 64 then
-                lines[#lines + 1] = item
-                found = found + 1
-            end
+            if item.count < 64 then low[#low + 1] = item end
         end
-        if found == 0 then
+        if #low == 0 then
             send("Nothing below 64!")
         else
-            send("Low stock (< 64):")
-            for i = 1, math.min(20, #lines) do
-                send("  " .. lines[i].displayName .. ": " .. lines[i].count)
+            send("Low stock (<64): " .. #low .. " items")
+            for i = 1, math.min(15, #low) do
+                send("  " .. low[i].displayName .. ": " .. low[i].count)
             end
-            if found > 20 then
-                send("  ...and " .. (found - 20) .. " more")
-            end
+            if #low > 15 then send("  ...and " .. (#low - 15) .. " more") end
         end
 
     else
-        -- Search by name
         local q       = arg:lower()
         local results = {}
         for _, item in ipairs(items) do
@@ -100,13 +92,11 @@ local function handleStock(player, arg)
         if #results == 0 then
             send("No items matching '" .. arg .. "'.")
         else
-            send("Matching '" .. arg .. "':")
+            send("Matching '" .. arg .. "': " .. #results .. " found")
             for i = 1, math.min(15, #results) do
                 send("  " .. results[i].displayName .. ": " .. results[i].count)
             end
-            if #results > 15 then
-                send("  ...and " .. (#results - 15) .. " more")
-            end
+            if #results > 15 then send("  ...and " .. (#results - 15) .. " more") end
         end
     end
 end
@@ -116,18 +106,17 @@ end
 -- ============================================================
 while true do
     local ok, err = pcall(function()
-        -- Advanced Peripherals chatBox fires: username, message, uuid, isHidden
         local event, username, message = os.pullEvent("chat")
-
         if type(message) ~= "string" then return end
 
-        local lower = message:lower()
+        local lower = message:lower():match("^%s*(.-)%s*$")
 
-        if lower == "!stock" then
-            handleStock(username, "")
+        if lower == "!help" then
+            cmdHelp()
+        elseif lower == "!stock" then
+            cmdStock("")
         elseif lower:sub(1, 7) == "!stock " then
-            local arg = message:sub(8):match("^%s*(.-)%s*$")
-            handleStock(username, arg)
+            cmdStock(message:sub(8):match("^%s*(.-)%s*$"))
         end
     end)
 

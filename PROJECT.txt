@@ -1,0 +1,141 @@
+PROJECT: cc-atm9-inventory
+REPO: https://github.com/dryerguy/cc-atm9-inventory
+VERSION: 5
+PLATFORM: CC:Tweaked 1.20.1 / ATM9 modpack
+MODS_REQUIRED: CC:Tweaked, Advanced Peripherals
+
+================================================================================
+ARCHITECTURE
+================================================================================
+
+TOPOLOGY:
+
+  [Chest(s)] adjacent to [Node Computer]
+      [Ender Modem] on Node Computer
+           |
+      (wireless rednet, infinite range)
+           |
+      [Ender Modem] on Terminal Computer
+      [Monitor] optional external display
+      [Chat Box] Advanced Peripherals — for !stock chat commands
+
+COMMUNICATION PROTOCOL: "inv_net" over rednet
+
+  Terminal -> Node : "list"          -- request full inventory
+  Node -> Terminal : serialized table {["mod:item"] = count, ...}
+  Terminal -> Node : "ping"          -- health check
+  Node -> Terminal : "pong:<id>"
+
+SHARED STATE:
+  terminal.lua writes _G.sharedInventory after each query.
+  chatbot.lua reads _G.sharedInventory (no direct node queries).
+  Both run in parallel via parallel.waitForAny in startup.lua.
+
+================================================================================
+FILES
+================================================================================
+
+node.lua
+  Role    : Runs on each chest-side node computer
+  Does    : Detects all adjacent/wired inventory peripherals, aggregates item
+            counts via peripheral.hasType("inventory") + inv.list(), responds
+            to rednet "list" and "ping" messages
+  Startup : node_startup.lua (renamed to startup.lua on each node computer)
+
+terminal.lua
+  Role    : Runs on the central terminal computer
+  Does    : Queries all nodes in NODE_IDS, merges inventory, renders sorted
+            item list with live search, scroll, color-coded counts, timestamps
+  Config  : NODE_IDS at top of file — set to all node computer IDs
+
+chatbot.lua
+  Role    : Runs in parallel with terminal on the same computer
+  Does    : Listens for "chat" events from the Chat Box peripheral,
+            handles !stock / !stock low / !stock <query> / !help
+  Data    : Reads _G.sharedInventory — does NOT query nodes directly
+
+startup.lua
+  Role    : Boot script for terminal computer
+  Does    : Runs updater.lua, then launches terminal + chatbot in parallel
+            Chatbot failure does not kill terminal
+
+node_startup.lua
+  Role    : Boot script for node computers (rename to startup.lua on each node)
+  Does    : Runs updater.lua, then loops node.lua with restart on crash
+
+updater.lua
+  Role    : Auto-updater, runs on both node and terminal computers at boot
+  Does    : Fetches version.txt from GitHub, compares to local version,
+            downloads the correct file set for this computer type, reboots
+  Node downloads    : node.lua, updater.lua, startup.lua, version.txt
+  Terminal downloads: terminal.lua, chatbot.lua, startup.lua, updater.lua, version.txt
+
+version.txt
+  Single integer. Increment and push to trigger auto-update on all computers.
+
+================================================================================
+SETUP — NODE COMPUTER
+================================================================================
+
+1. Place computer adjacent to chest(s)
+2. Attach Ender Modem to any side of computer
+3. Boot computer, open shell
+4. wget https://raw.githubusercontent.com/dryerguy/cc-atm9-inventory/master/node_startup.lua startup.lua
+5. wget https://raw.githubusercontent.com/dryerguy/cc-atm9-inventory/master/updater.lua updater.lua
+6. reboot
+7. Note the computer ID printed on screen — you will add it to terminal.lua NODE_IDS
+
+================================================================================
+SETUP — TERMINAL COMPUTER
+================================================================================
+
+1. Place computer anywhere (Ender Modem has infinite range)
+2. Attach Ender Modem to any side
+3. Optionally attach Monitor and/or Chat Box
+4. Edit terminal.lua line 5: NODE_IDS = {id1, id2, ...} with your node IDs
+5. Boot, download files:
+   wget .../startup.lua startup.lua
+   wget .../updater.lua updater.lua
+6. reboot — updater downloads remaining files automatically
+
+================================================================================
+KNOWN LIMITATIONS
+================================================================================
+
+- NODE_IDS is hardcoded. Adding a node requires editing terminal.lua, bumping
+  version.txt, and waiting for auto-update (or manual re-download).
+- chatbot.lua reads shared memory, not live data. Data is up to REFRESH seconds old.
+- No authentication on !stock commands — any player can query.
+- HTTP must be enabled and raw.githubusercontent.com must be whitelisted in
+  computercraft-server.toml for wget and the auto-updater to work.
+- Chat Box peripheral type name varies by Advanced Peripherals version. Detection
+  uses method scanning (looking for "sendMessage") not type string.
+
+================================================================================
+FUTURE UPGRADES
+================================================================================
+
+1. AUTO-DISCOVERY
+   Terminal broadcasts "discover" on boot. Nodes respond with their ID.
+   Eliminates hardcoded NODE_IDS. New nodes are detected automatically.
+
+2. LOW-STOCK ALERTS
+   Configurable threshold table {["minecraft:iron_ingot"] = 256, ...}.
+   Terminal header flashes red when any item drops below its threshold.
+   Optional: play sound via speaker peripheral.
+
+3. ITEM DELTA TRACKING
+   Node records item counts between queries. Sends deltas to terminal.
+   Terminal shows "+64" or "-32" next to each item since last refresh.
+   Useful for tracking consumption rates.
+
+4. DISCORD / WEBHOOK PUSH
+   On each refresh, terminal serializes inventory to JSON and POSTs to a
+   webhook URL (Discord, Slack, custom server). Enables out-of-game monitoring.
+
+5. TURTLE CRAFTING INTEGRATION
+   !craft <item> <count> command queues a crafting job via a shared rednet
+   channel. A dedicated crafting turtle reads the queue and executes it,
+   moving items from storage into a crafting table automatically.
+
+================================================================================
