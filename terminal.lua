@@ -4,7 +4,7 @@
 -- ============================================================
 -- CONFIG
 -- ============================================================
-local NODE_IDS = {2, 3, 4, 5}
+local NODE_IDS = {5}
 local PROTOCOL = "inv_net"
 local TIMEOUT  = 3
 local REFRESH  = 15
