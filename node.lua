@@ -29,14 +29,14 @@ rednet.open(modemSide)
 -- Auto-detect inventoryManager peripheral
 local inv = nil
 for _, name in ipairs(peripheral.getNames()) do
-    if peripheral.getType(name) == "inventoryManager" then
+    if peripheral.getType(name) == "inv manager" then
         inv = peripheral.wrap(name)
         break
     end
 end
 
 if not inv then
-    error("No inventoryManager found! Attach an Inventory Manager peripheral.", 0)
+    error("No 'inv manager' peripheral found! Attach an Inventory Manager peripheral.", 0)
 end
 
 -- ============================================================
@@ -65,7 +65,7 @@ while true do
 
         elseif message == "list" then
             print("[" .. os.time() .. "] List request from #" .. senderID)
-            local getOk, items = pcall(function() return inv.getItems() end)
+            local getOk, items = pcall(function() return inv.getItemsChest() end)
             if getOk and items then
                 rednet.send(senderID, textutils.serialize(items), PROTOCOL)
                 print("  Sent " .. #items .. " item stacks")
